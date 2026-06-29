@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Document And Entity Map</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link rel="stylesheet" href="main.css" />
+  </head>
+  <body>
+    <div id="setup">
+      <div class="card">
+        <h1>Document And Entity Map</h1>
+        <p class="muted" id="setupSummary"></p>
+
+        <div class="step">1. Which types of entities do you want to see?</div>
+        <div class="types" id="typeList"></div>
+        <div class="linkbtns">
+          <a id="selectAll">Select all</a><a id="clearAll">Clear</a>
+        </div>
+
+        <div class="step">2. How many entities do you want on screen?</div>
+        <div class="countline">
+          Show the top
+          <input id="count" type="number" min="1" value="50" />
+          most-mentioned.
+        </div>
+        <p id="matchInfo"></p>
+
+        <button id="launch">Launch graph &rarr;</button>
+      </div>
+    </div>
+
+    <div id="wrap">
+      <svg id="graph"></svg>
+      <div id="side">
+        <button id="settingsBtn">&#9881; Change selection</button>
+        <h1>Document And Entity Map</h1>
+        <p class="muted" id="summary"></p>
+        <input id="search" type="search" placeholder="Highlight a node…" />
+        <div id="legend"></div>
+      </div>
+    </div>
+    <div id="tip"></div>
+
+    <script type="module" src="main.js"></script>
+  </body>
+</html>
