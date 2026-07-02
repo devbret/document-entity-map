@@ -40,8 +40,10 @@ def read_pdf(path):
 
 
 def _iter_shapes(shapes):
+    from pptx.enum.shapes import MSO_SHAPE_TYPE
+
     for shape in shapes:
-        if shape.shape_type == 6:
+        if shape.shape_type == MSO_SHAPE_TYPE.GROUP:
             yield from _iter_shapes(shape.shapes)
         else:
             yield shape
@@ -169,7 +171,8 @@ def main():
     except OSError:
         raise SystemExit(
             f"spaCy model '{MODEL}' is not installed. Install it with:\n"
-            f"    python -m spacy download {MODEL}"
+            f"    pip install -r requirements.txt\n"
+            f"or: python -m spacy download {MODEL}"
         )
 
     edge = Counter()
@@ -225,20 +228,20 @@ def main():
 
     nodes = []
 
-    docs_with_edges = {
-        d for (d, k) in edge if k in kept
-    }
-    for name in sorted(docs_with_edges):
-        mentions = sum(c for (d, k), c in edge.items()
-                       if d == name and k in kept)
-        distinct = sum(1 for (d, k) in edge if d == name and k in kept)
+    doc_mentions = Counter()
+    doc_distinct = Counter()
+    for (doc_name, key), count in edge.items():
+        if key in kept:
+            doc_mentions[doc_name] += count
+            doc_distinct[doc_name] += 1
+    for name in sorted(doc_mentions):
         nodes.append({
             "id": f"doc::{name}",
             "type": "document",
             "label": name,
             "format": doc_formats[name],
-            "entityCount": distinct,
-            "mentionCount": mentions,
+            "entityCount": doc_distinct[name],
+            "mentionCount": doc_mentions[name],
         })
 
     def ent_id(key):
@@ -271,7 +274,7 @@ def main():
     graph = {
         "meta": {
             "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            "documents": len(docs_with_edges),
+            "documents": len(doc_mentions),
             "entities": len(kept),
             "links": len(links),
             "entityTypes": NAMED_LABELS,
@@ -285,7 +288,7 @@ def main():
 
     print(
         f"\nWrote {len(nodes)} nodes "
-        f"({len(docs_with_edges)} documents, {len(kept)} entities) "
+        f"({len(doc_mentions)} documents, {len(kept)} entities) "
         f"and {len(links)} links."
     )
     print(f"  data: {JSON_FILE}")
