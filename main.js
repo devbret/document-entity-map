@@ -1,11 +1,25 @@
+const showLoadError = (msg) => {
+  document.getElementById("setupSummary").textContent = msg;
+};
+
+if (typeof d3 === "undefined") {
+  showLoadError(
+    "Could not load the D3 library from the CDN. " +
+      "Check your internet connection and reload.",
+  );
+  throw new Error("d3 is not available");
+}
+
 let graph;
 try {
   graph = await d3.json("./output/graph.json");
 } catch (err) {
   console.error(err);
-  document.getElementById("setupSummary").textContent =
-    "Could not load graph.json. Serve the output/ folder over http " +
-    "(e.g. VS Code Live Server) instead of opening this file directly.";
+  showLoadError(
+    "Could not load output/graph.json. Run app.py to generate it, then " +
+      "serve the repo root over http (e.g. python3 -m http.server) instead " +
+      "of opening this file directly.",
+  );
   throw err;
 }
 
@@ -143,9 +157,11 @@ d3.select("#settingsBtn").on("click", () =>
 );
 
 let sim, node, link, neighbors;
+let hoverId = null;
 
 function renderGraph(nodes, links) {
   svg.selectAll("*").remove();
+  hoverId = null;
 
   d3.select("#summary").text(
     `${nodes.filter((n) => n.type === "document").length} documents · ` +
@@ -288,7 +304,10 @@ function renderGraph(nodes, links) {
     .text((d) => d.label);
 
   node
-    .on("mouseover", (e, d) => spotlight(d.id))
+    .on("mouseover", (e, d) => {
+      hoverId = d.id;
+      applyHighlight();
+    })
     .on("mousemove", (e, d) => {
       tip
         .style("opacity", 1)
@@ -304,7 +323,8 @@ function renderGraph(nodes, links) {
     })
     .on("mouseout", () => {
       tip.style("opacity", 0);
-      spotlight(null);
+      hoverId = null;
+      applyHighlight();
     });
 
   sim.on("tick", () => {
@@ -315,25 +335,30 @@ function renderGraph(nodes, links) {
       .attr("y2", (d) => d.target.y);
     node.attr("transform", (d) => `translate(${d.x},${d.y})`);
   });
+
+  applyHighlight();
 }
 
-function spotlight(id) {
-  if (!node) return;
-  const keep = id ? neighbors.get(id) : null;
-  node.classed("faded", (d) => keep && !keep.has(d.id));
-  link.classed(
-    "faded",
-    (d) => keep && !(keep.has(d.source.id) && keep.has(d.target.id)),
-  );
-}
+const searchInput = document.getElementById("search");
 
-d3.select("#search").on("input", function () {
+function applyHighlight() {
   if (!node) return;
-  const q = this.value.trim().toLowerCase();
+  if (hoverId) {
+    const keep = neighbors.get(hoverId);
+    node.classed("faded", (d) => !keep.has(d.id));
+    link.classed(
+      "faded",
+      (d) => !(keep.has(d.source.id) && keep.has(d.target.id)),
+    );
+    return;
+  }
+  const q = searchInput.value.trim().toLowerCase();
   const matches = (d) => d.label.toLowerCase().includes(q);
   node.classed("faded", (d) => q && !matches(d));
-  link.classed("faded", (d) => q && !(matches(d.source) && matches(d.target)));
-});
+  link.classed("faded", (d) => q && !(matches(d.source) || matches(d.target)));
+}
+
+d3.select("#search").on("input", applyHighlight);
 
 window.addEventListener("resize", () => {
   size();

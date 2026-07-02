@@ -38,19 +38,17 @@ Below are the required software programs and set up steps for running this appli
 
 7. Install the needed dependencies: `pip install -r requirements.txt`
 
-8. Download the English model used for entity recognition: `python -m spacy download en_core_web_sm`
+8. Add your PDF and PPTX files to the `input` directory
 
-9. Add your PDF and PPTX files to the `input` directory
+9. Run the script: `python3 app.py`
 
-10. Run the script: `python3 app.py`
+10. Start an HTTP server: `python3 -m http.server`
 
-11. Start an HTTP server: `python3 -m http.server`
+11. Visit the frontend in a browser: `http://127.0.0.1:8000/`
 
-12. Visit the frontend in a browser: `http://127.0.0.1:8000/`
+12. When finished, shutdown the HTTP server: `CTRL + C`
 
-13. When finished, shutdown the HTTP server: `CTRL + C`
-
-14. Exit the virtual environment: `deactivate`
+13. Exit the virtual environment: `deactivate`
 
 ## Other Considerations
 
