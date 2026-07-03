@@ -237,3 +237,83 @@ button:hover {
   width: 100%;
   margin-bottom: 12px;
 }
+
+#detail {
+  border-top: 1px solid #eee;
+  border-bottom: 1px solid #eee;
+  margin-bottom: 12px;
+  padding: 10px 0;
+}
+#detail.hidden {
+  display: none;
+}
+.detail-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+}
+.detail-head b {
+  overflow-wrap: anywhere;
+}
+#detailClose {
+  margin-left: auto;
+  flex: none;
+  border: none;
+  background: none;
+  padding: 0 2px;
+  font-size: 16px;
+  line-height: 1;
+  color: #888;
+}
+#detailClose:hover {
+  color: #111;
+  background: none;
+}
+#detail .muted {
+  margin: 4px 0 0;
+}
+.detail-sub {
+  font-weight: 600;
+  font-size: 12px;
+  margin: 10px 0 4px;
+}
+#detailList {
+  max-height: 240px;
+  overflow-y: auto;
+}
+.conn-row {
+  display: flex;
+  align-items: center;
+  padding: 3px 4px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.conn-row:hover {
+  background: #f2f2f2;
+}
+.conn-row .swatch {
+  width: 10px;
+  height: 10px;
+}
+.conn-row .clabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.conn-row .cval {
+  margin-left: auto;
+  flex: none;
+  padding-left: 8px;
+  color: #888;
+  font-variant-numeric: tabular-nums;
+}
+.node.pinned circle {
+  stroke: #111;
+  stroke-width: 2.5;
+}
+.node.pinned rect {
+  stroke: #2563eb;
+  stroke-width: 2.5;
+}

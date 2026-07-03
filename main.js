@@ -83,7 +83,7 @@ typeCounts.forEach(([type, n]) => {
   const row = typeList
     .append("label")
     .attr("class", "type-row")
-    .attr("title", `${type} — ${graph.meta.entityTypes[type]}`);
+    .attr("title", `${type} - ${graph.meta.entityTypes[type]}`);
   row
     .append("input")
     .attr("type", "checkbox")
@@ -156,12 +156,16 @@ d3.select("#settingsBtn").on("click", () =>
   d3.select("#setup").classed("hidden", false),
 );
 
-let sim, node, link, neighbors;
+let sim, node, link, neighbors, connections, nodeById, zoomBehavior;
 let hoverId = null;
+let pinnedId = null;
 
 function renderGraph(nodes, links) {
+  if (sim) sim.stop();
   svg.selectAll("*").remove();
   hoverId = null;
+  pinnedId = null;
+  renderDetail();
 
   d3.select("#summary").text(
     `${nodes.filter((n) => n.type === "document").length} documents · ` +
@@ -204,9 +208,13 @@ function renderGraph(nodes, links) {
   });
 
   neighbors = new Map(nodes.map((n) => [n.id, new Set([n.id])]));
+  connections = new Map(nodes.map((n) => [n.id, []]));
+  nodeById = new Map(nodes.map((n) => [n.id, n]));
   links.forEach((l) => {
     neighbors.get(l.source).add(l.target);
     neighbors.get(l.target).add(l.source);
+    connections.get(l.source).push({ id: l.target, value: l.value });
+    connections.get(l.target).push({ id: l.source, value: l.value });
   });
 
   sim = d3
@@ -227,12 +235,11 @@ function renderGraph(nodes, links) {
     );
 
   const root = svg.append("g");
-  svg.call(
-    d3
-      .zoom()
-      .scaleExtent([0.2, 6])
-      .on("zoom", (e) => root.attr("transform", e.transform)),
-  );
+  zoomBehavior = d3
+    .zoom()
+    .scaleExtent([0.2, 6])
+    .on("zoom", (e) => root.attr("transform", e.transform));
+  svg.call(zoomBehavior);
 
   link = root
     .append("g")
@@ -317,7 +324,7 @@ function renderGraph(nodes, links) {
           d.type === "document"
             ? `<b>${esc(d.label)}</b><br>${d.format.toUpperCase()} document<br>` +
                 `${d.entityCount} entities · ${d.mentionCount} mentions`
-            : `<b>${esc(d.label)}</b><br>${d.entityType} — ${d.entityTypeLabel}<br>` +
+            : `<b>${esc(d.label)}</b><br>${d.entityType} - ${d.entityTypeLabel}<br>` +
                 `in ${d.docCount} document(s) · ${d.mentionCount} mentions`,
         );
     })
@@ -325,6 +332,10 @@ function renderGraph(nodes, links) {
       tip.style("opacity", 0);
       hoverId = null;
       applyHighlight();
+    })
+    .on("click", (e, d) => {
+      e.stopPropagation();
+      setPinned(pinnedId === d.id ? null : d.id);
     });
 
   sim.on("tick", () => {
@@ -343,8 +354,10 @@ const searchInput = document.getElementById("search");
 
 function applyHighlight() {
   if (!node) return;
-  if (hoverId) {
-    const keep = neighbors.get(hoverId);
+  node.classed("pinned", (d) => d.id === pinnedId);
+  const focusId = hoverId || pinnedId;
+  if (focusId) {
+    const keep = neighbors.get(focusId);
     node.classed("faded", (d) => !keep.has(d.id));
     link.classed(
       "faded",
@@ -359,6 +372,68 @@ function applyHighlight() {
 }
 
 d3.select("#search").on("input", applyHighlight);
+
+const detailEl = document.getElementById("detail");
+
+function setPinned(id) {
+  pinnedId = id;
+  renderDetail();
+  applyHighlight();
+}
+
+function renderDetail() {
+  const d = pinnedId ? nodeById.get(pinnedId) : null;
+  detailEl.classList.toggle("hidden", !d);
+  if (!d) return;
+
+  document.getElementById("detailTitle").textContent = d.label;
+  document.getElementById("detailMeta").textContent =
+    d.type === "document"
+      ? `${d.format.toUpperCase()} document · ${d.mentionCount} mentions`
+      : `${d.entityType} (${d.entityTypeLabel}) · ${d.mentionCount} mentions`;
+
+  const conns = (connections.get(d.id) || [])
+    .slice()
+    .sort((a, b) => b.value - a.value);
+  document.getElementById("detailConnHead").textContent =
+    d.type === "document"
+      ? `Entities shown (${conns.length} of ${d.entityCount})`
+      : `Documents (${conns.length})`;
+
+  const list = d3.select("#detailList").html("");
+  conns.forEach((c) => {
+    const other = nodeById.get(c.id);
+    const row = list
+      .append("div")
+      .attr("class", "conn-row")
+      .attr(
+        "title",
+        `${other.label} · ${c.value} mention${c.value === 1 ? "" : "s"}`,
+      )
+      .on("click", () => {
+        setPinned(other.id);
+        svg
+          .transition()
+          .duration(400)
+          .call(zoomBehavior.translateTo, other.x, other.y);
+      });
+    row
+      .append("span")
+      .attr("class", other.type === "document" ? "swatch doc-swatch" : "swatch")
+      .style(
+        "background",
+        other.type === "entity" ? color(other.entityType) : null,
+      );
+    row.append("span").attr("class", "clabel").text(other.label);
+    row.append("span").attr("class", "cval").text(c.value.toLocaleString());
+  });
+}
+
+d3.select("#detailClose").on("click", () => setPinned(null));
+svg.on("click", () => setPinned(null));
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") setPinned(null);
+});
 
 window.addEventListener("resize", () => {
   size();

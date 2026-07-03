@@ -37,6 +37,17 @@
         <h1>Document And Entity Map</h1>
         <p class="muted" id="summary"></p>
         <input id="search" type="search" placeholder="Highlight a node…" />
+        <div id="detail" class="hidden">
+          <div class="detail-head">
+            <b id="detailTitle"></b>
+            <button id="detailClose" title="Clear selection (Esc)">
+              &times;
+            </button>
+          </div>
+          <p class="muted" id="detailMeta"></p>
+          <div class="detail-sub" id="detailConnHead"></div>
+          <div id="detailList"></div>
+        </div>
         <div id="legend"></div>
       </div>
     </div>
