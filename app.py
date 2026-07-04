@@ -70,9 +70,17 @@ def read_pptx(path):
     return "\n".join(parts)
 
 
+def read_txt(path):
+    try:
+        return path.read_text(encoding="utf-8-sig")
+    except UnicodeDecodeError:
+        return path.read_text(encoding="latin-1")
+
+
 READERS = {
     ".pdf": (read_pdf, "pdf"),
     ".pptx": (read_pptx, "pptx"),
+    ".txt": (read_txt, "txt"),
 }
 
 
@@ -161,7 +169,7 @@ def main():
             )
     if not files:
         raise SystemExit(
-            f"No .pdf or .pptx files found in {INPUT_DIR}/"
+            f"No .pdf, .pptx or .txt files found in {INPUT_DIR}/"
         )
 
     try:
