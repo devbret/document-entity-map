@@ -24,9 +24,21 @@
           <input id="count" type="number" min="1" value="50" />
           most-mentioned.
         </div>
+
+        <div class="step">
+          3. How many documents should an entity be mentioned in?
+        </div>
+        <div class="countline">
+          Only include entities found in at least
+          <input id="minDocs" type="number" min="1" value="1" />
+          document(s).
+        </div>
         <p id="matchInfo"></p>
 
         <button id="launch">Launch graph &rarr;</button>
+        <button id="analysisBtnSetup" class="secondary">
+          Open corpus analysis
+        </button>
       </div>
     </div>
 
@@ -34,9 +46,11 @@
       <svg id="graph"></svg>
       <div id="side">
         <button id="settingsBtn">&#9881; Change selection</button>
+        <button id="analysisBtn">&#128202; Corpus analysis</button>
         <h1>Document And Entity Map</h1>
         <p class="muted" id="summary"></p>
         <input id="search" type="search" placeholder="Highlight a node…" />
+        <p id="searchHint" class="hidden"></p>
         <div id="detail" class="hidden">
           <div class="detail-head">
             <b id="detailTitle"></b>
@@ -45,10 +59,22 @@
             </button>
           </div>
           <p class="muted" id="detailMeta"></p>
+          <div id="detailActions"></div>
           <div class="detail-sub" id="detailConnHead"></div>
           <div id="detailList"></div>
         </div>
         <div id="legend"></div>
+      </div>
+    </div>
+    <div id="analysis" class="hidden">
+      <div class="a-panel">
+        <div class="a-head">
+          <b>Corpus analysis</b>
+          <span class="muted" id="aSummary"></span>
+          <button id="analysisClose" title="Close (Esc)">&times;</button>
+        </div>
+        <nav id="aTabs"></nav>
+        <div id="aBody"></div>
       </div>
     </div>
     <div id="tip"></div>
