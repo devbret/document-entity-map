@@ -1,3 +1,5 @@
+import { initAnalysis } from "./analysis.js";
+
 const showLoadError = (msg) => {
   document.getElementById("setupSummary").textContent = msg;
 };
@@ -102,27 +104,34 @@ const selectedTypes = () =>
       .map((c) => c.value),
   );
 const countInput = document.getElementById("count");
+const minDocsInput = document.getElementById("minDocs");
 const launchBtn = document.getElementById("launch");
+
+const minDocsValue = () => Math.max(1, +minDocsInput.value || 1);
 
 function refreshSetup() {
   const types = selectedTypes();
-  const matching = allEnts.filter((e) => types.has(e.entityType)).length;
+  const minDocs = minDocsValue();
+  const matching = allEnts.filter(
+    (e) => types.has(e.entityType) && e.docCount >= minDocs,
+  ).length;
   countInput.max = matching || 1;
   if (+countInput.value > matching) countInput.value = matching;
   d3.select("#matchInfo").text(
     types.size === 0
       ? "Select at least one entity type."
       : matching === 0
-        ? "No entities of the selected types."
-        : `${matching.toLocaleString()} entities match; showing the top ` +
-          `${Math.min(Math.max(1, +countInput.value || 1), matching).toLocaleString()} ` +
-          `by mention count.`,
+        ? minDocs > 1
+          ? "No entities match; lower the document minimum or add types."
+          : "No entities of the selected types."
+        : "",
   );
   launchBtn.disabled = types.size === 0 || matching === 0;
 }
 
 typeList.on("change", refreshSetup);
 countInput.addEventListener("input", refreshSetup);
+minDocsInput.addEventListener("input", refreshSetup);
 d3.select("#selectAll").on("click", () => {
   checkboxes().forEach((c) => (c.checked = true));
   refreshSetup();
@@ -135,9 +144,10 @@ refreshSetup();
 
 launchBtn.addEventListener("click", () => {
   const types = selectedTypes();
+  const minDocs = minDocsValue();
   const n = Math.max(1, +countInput.value || 1);
   const ents = allEnts
-    .filter((e) => types.has(e.entityType))
+    .filter((e) => types.has(e.entityType) && e.docCount >= minDocs)
     .sort((a, b) => b.mentionCount - a.mentionCount)
     .slice(0, n);
   const entIds = new Set(ents.map((e) => e.id));
@@ -155,6 +165,10 @@ launchBtn.addEventListener("click", () => {
 d3.select("#settingsBtn").on("click", () =>
   d3.select("#setup").classed("hidden", false),
 );
+
+const analysis = initAnalysis(graph, { color, esc });
+d3.select("#analysisBtn").on("click", () => analysis.open());
+d3.select("#analysisBtnSetup").on("click", () => analysis.open());
 
 let sim, node, link, neighbors, connections, nodeById, zoomBehavior;
 let hoverId = null;
@@ -371,7 +385,36 @@ function applyHighlight() {
   link.classed("faded", (d) => q && !(matches(d.source) || matches(d.target)));
 }
 
-d3.select("#search").on("input", applyHighlight);
+const searchHint = d3.select("#searchHint");
+
+function updateSearchHint() {
+  const q = searchInput.value.trim().toLowerCase();
+  const onScreen =
+    q && node ? node.data().some((d) => d.label.toLowerCase().includes(q)) : true;
+  if (!q || onScreen) {
+    searchHint.classed("hidden", true);
+    return;
+  }
+  const inData = allEnts.filter((e) =>
+    e.label.toLowerCase().includes(q),
+  ).length;
+  searchHint
+    .classed("hidden", false)
+    .text(
+      inData === 0
+        ? "No matches anywhere in the dataset."
+        : `Not on screen - ${inData.toLocaleString()} entit` +
+            `${inData === 1 ? "y" : "ies"} match in the full dataset. Browse all →`,
+    )
+    .on("click", () =>
+      inData === 0 ? null : analysis.open("entities", { query: q }),
+    );
+}
+
+d3.select("#search").on("input", () => {
+  applyHighlight();
+  updateSearchHint();
+});
 
 const detailEl = document.getElementById("detail");
 
@@ -391,6 +434,20 @@ function renderDetail() {
     d.type === "document"
       ? `${d.format.toUpperCase()} document · ${d.mentionCount} mentions`
       : `${d.entityType} (${d.entityTypeLabel}) · ${d.mentionCount} mentions`;
+
+  const actions = d3.select("#detailActions").html("");
+  if (d.type === "entity")
+    actions
+      .append("button")
+      .attr("class", "mini")
+      .text("Co-occurring entities →")
+      .on("click", () => analysis.open("cooc", { entityId: d.id }));
+  else
+    actions
+      .append("button")
+      .attr("class", "mini")
+      .text("Compare with another document →")
+      .on("click", () => analysis.open("compare", { docId: d.id }));
 
   const conns = (connections.get(d.id) || [])
     .slice()
@@ -432,7 +489,9 @@ function renderDetail() {
 d3.select("#detailClose").on("click", () => setPinned(null));
 svg.on("click", () => setPinned(null));
 window.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") setPinned(null);
+  if (e.key !== "Escape") return;
+  if (analysis.isOpen()) analysis.close();
+  else setPinned(null);
 });
 
 window.addEventListener("resize", () => {

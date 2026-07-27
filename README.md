@@ -1,6 +1,6 @@
 # Document And Entity Map
 
-![Screenshot featuring hundreds of document and entity nodes connected in a network graph.](https://hosting.photobucket.com/bbcfb0d4-be20-44a0-94dc-65bff8947cf2/5ddcf9f0-cd7c-40c1-8a3d-168554cb3bb4.png)
+![Screenshot featuring hundreds of document and entity nodes connected in a network graph.](https://hosting.photobucket.com/bbcfb0d4-be20-44a0-94dc-65bff8947cf2/eb820c24-8803-4dca-bb7c-187b7c5e0189.png)
 
 Extract named entities from a collection of PDF and PowerPoint documents, then build an interactive D3 network graph linking each document to the entities it mentions.
 
@@ -10,7 +10,9 @@ A Python script reads each file's text and runs `spaCy`'s named-entity recognize
 
 The result is written so every document and every entity is a node and a weighted link connects a document to each entity it mentions. Because an entity showing up in two documents becomes a single shared node, the graph reveals at a glance which documents are related through what they have in common.
 
-Finally, a browser-based frontend renders this JSON file as a D3 network diagram where you can filter by entity type, cap how many entities appear, spotlight nodes and hover for entity and document details.
+Finally, a browser-based frontend renders this JSON file as a D3 network graph where you can filter by entity type, cap how many entities appear, require a minimum document presence and hover for entity details.
+
+A document collection analysis modal reflects the full dataset rather than only the rendered nodes. Which includes summary charts, similar document pairs, data-quality view listing and other analyses.
 
 ## Basic Setup Instructions
 
@@ -61,5 +63,7 @@ This project repo is intended to demonstrate an ability to do the following:
 - Build a JSON file which connects every document to the entities it mentions, weighted by how often each entity appears
 
 - Render the JSON file in an interactive network graph where you can filter by entity type, spotlight nodes and hover for document and entity details
+
+- Analyze the whole collection of input documents by document similarity, entity co-occurrence, summary charts and more
 
 If you have any questions or would like to collaborate, please reach out either on GitHub or via [my website](https://bretbernhoft.com/).
