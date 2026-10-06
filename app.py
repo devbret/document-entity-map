@@ -205,78 +205,80 @@ def _acronym_of(name):
     return "".join(t[0] for t in tokens)
 
 
-def merge_aliases(kept, ent_total):
+def _containment_aliases(keys):
     by_label = defaultdict(list)
-    for key in kept:
+    for key in keys:
         by_label[key[1]].append(key)
 
-    canonical = {key: key for key in kept}
-    for keys in by_label.values():
+    canonical = {}
+    for group in by_label.values():
         token_index = defaultdict(list)
-        for key in keys:
+        for key in group:
             for tok in set(key[0].split()):
                 token_index[tok].append(key)
-        for short in keys:
+        for short in sorted(group, key=lambda k: -len(k[0].split())):
             short_tokens = short[0].split()
-            best, best_total = None, -1
-            for long in token_index.get(short_tokens[0], ()):
-                long_tokens = long[0].split()
-                if len(long_tokens) <= len(short_tokens):
-                    continue
-                if _contains_tokens(short_tokens, long_tokens) and (
-                    ent_total[long] > best_total
-                ):
-                    best, best_total = long, ent_total[long]
-            if best is not None:
-                canonical[short] = best
+            roots = {
+                canonical.get(long, long)
+                for long in token_index.get(short_tokens[0], ())
+                if len(long[0].split()) > len(short_tokens)
+                and _contains_tokens(short_tokens, long[0].split())
+            }
+            if len(roots) == 1:
+                canonical[short] = roots.pop()
+    return canonical
 
-    def resolve(key):
-        while canonical[key] != key:
-            key = canonical[key]
-        return key
 
-    resolved = {key: resolve(key) for key in kept}
+def _acronym_aliases(keys):
+    by_label = defaultdict(set)
+    for key in keys:
+        by_label[key[1]].add(key)
 
-    by_label_canon = defaultdict(set)
-    for canon in set(resolved.values()):
-        by_label_canon[canon[1]].add(canon)
-    acro_target = {}
-    for canons in by_label_canon.values():
+    canonical = {}
+    for group in by_label.values():
         expansions = defaultdict(set)
-        for canon in canons:
-            acro = _acronym_of(canon[0])
+        for key in group:
+            acro = _acronym_of(key[0])
             if acro:
-                expansions[acro].add(canon)
-        for canon in canons:
-            if " " in canon[0]:
+                expansions[acro].add(key)
+        for key in group:
+            if " " in key[0]:
                 continue
-            word = re.sub(r"[^a-z0-9]", "", canon[0])
+            word = re.sub(r"[^a-z0-9]", "", key[0])
             if not 2 <= len(word) <= 6:
                 continue
-            targets = expansions.get(word, set()) - {canon}
+            targets = expansions.get(word, set()) - {key}
             if len(targets) == 1:
-                acro_target[canon] = next(iter(targets))
-    if acro_target:
-        return {
-            key: acro_target.get(canon, canon)
-            for key, canon in resolved.items()
+                canonical[key] = next(iter(targets))
+    return canonical
+
+
+def merge_aliases(doc_keys):
+    resolved = {}
+    for doc_name, keys in doc_keys.items():
+        canonical = _containment_aliases(keys)
+        for key in keys:
+            resolved[(doc_name, key)] = canonical.get(key, key)
+    acronyms = _acronym_aliases(set(resolved.values()))
+    return {
+        doc_key: acronyms.get(canon, canon)
+        for doc_key, canon in resolved.items()
+    }
+
+
+def merged_names(spellings, display):
+    names = defaultdict(Counter)
+    for spelling, count in spellings.items():
+        names[spelling.lower()][spelling] += count
+    merged = [
+        {
+            "label": forms.most_common(1)[0][0],
+            "mentionCount": sum(forms.values()),
         }
-    return resolved
-
-
-def apply_mapping(mapping, edge, ent_total, ent_docs, ent_surface):
-    new_edge = Counter()
-    for (doc_name, key), count in edge.items():
-        new_edge[(doc_name, mapping.get(key, key))] += count
-    new_total = Counter()
-    new_docs = defaultdict(set)
-    new_surface = defaultdict(Counter)
-    for key, total in ent_total.items():
-        canon = mapping.get(key, key)
-        new_total[canon] += total
-        new_docs[canon] |= ent_docs[key]
-        new_surface[canon].update(ent_surface[key])
-    return new_edge, new_total, new_docs, new_surface
+        for name, forms in names.items()
+        if name != display.lower()
+    ]
+    return sorted(merged, key=lambda m: (-m["mentionCount"], m["label"]))
 
 
 def majority_types(ent_total, ent_docs):
@@ -339,10 +341,7 @@ def main():
             "best installed model."
         )
 
-    edge = Counter()
-    ent_total = Counter()
-    ent_docs = defaultdict(set)
-    ent_surface = defaultdict(Counter)
+    mentions = defaultdict(Counter)
     doc_formats = {}
 
     total = len(files)
@@ -358,38 +357,60 @@ def main():
 
         seen = set()
         for display, key, _label in entities_in(text, nlp):
-            edge[(path.name, key)] += 1
-            ent_total[key] += 1
-            ent_docs[key].add(path.name)
-            ent_surface[key][display] += 1
+            mentions[(path.name, key)][display] += 1
             seen.add(key)
 
         print(f"          {len(seen)} distinct entities", flush=True)
 
-    remap = majority_types(ent_total, ent_docs)
-    if remap:
-        edge, ent_total, ent_docs, ent_surface = apply_mapping(
-            remap, edge, ent_total, ent_docs, ent_surface
-        )
+    raw_total = Counter()
+    raw_docs = defaultdict(set)
+    for (doc_name, key), spellings in mentions.items():
+        raw_total[key] += sum(spellings.values())
+        raw_docs[key].add(doc_name)
+
+    retype = majority_types(raw_total, raw_docs)
+    if retype:
         print(
-            f"Consolidated {len(remap)} same-name entities under their "
+            f"Consolidated {len(retype)} same-name entities under their "
             "majority type."
         )
 
-    kept = {k for k, count in ent_total.items() if count >= MIN_MENTIONS}
+    typed_total = Counter()
+    for key, count in raw_total.items():
+        typed_total[retype.get(key, key)] += count
+    kept = {k for k, count in typed_total.items() if count >= MIN_MENTIONS}
     if not kept:
         raise SystemExit("No entities found in the input documents.")
 
+    canonical = {}
     if MERGE_ALIASES:
-        alias = {
-            k: v for k, v in merge_aliases(kept, ent_total).items() if v != k
-        }
-        if alias:
-            edge, ent_total, ent_docs, ent_surface = apply_mapping(
-                alias, edge, ent_total, ent_docs, ent_surface
-            )
-            kept = {alias.get(k, k) for k in kept}
-            print(f"Merged aliases: down to {len(kept)} distinct entities.")
+        doc_keys = defaultdict(set)
+        for doc_name, key in mentions:
+            key = retype.get(key, key)
+            if key in kept:
+                doc_keys[doc_name].add(key)
+        canonical = merge_aliases(doc_keys)
+
+    edge = Counter()
+    ent_total = Counter()
+    ent_docs = defaultdict(set)
+    ent_surface = defaultdict(Counter)
+    type_votes = defaultdict(Counter)
+    for (doc_name, raw_key), spellings in mentions.items():
+        key = retype.get(raw_key, raw_key)
+        if key not in kept:
+            continue
+        key = canonical.get((doc_name, key), key)
+        count = sum(spellings.values())
+        edge[(doc_name, key)] += count
+        ent_total[key] += count
+        ent_docs[key].add(doc_name)
+        ent_surface[key].update(spellings)
+        type_votes[key][raw_key[1]] += count
+
+    if any(canon != key for (_doc, key), canon in canonical.items()):
+        print(f"Merged aliases: down to {len(ent_total)} distinct entities.")
+    kept = set(ent_total)
 
     nodes = []
 
@@ -416,7 +437,7 @@ def main():
     for key in sorted(kept, key=lambda k: (-ent_total[k], k)):
         _name_lc, label = key
         display = ent_surface[key].most_common(1)[0][0]
-        nodes.append({
+        node = {
             "id": ent_id(key),
             "type": "entity",
             "label": display,
@@ -424,7 +445,13 @@ def main():
             "entityTypeLabel": NAMED_LABELS[label],
             "docCount": len(ent_docs[key]),
             "mentionCount": ent_total[key],
-        })
+        }
+        if len(type_votes[key]) > 1:
+            node["typeVotes"] = dict(type_votes[key].most_common())
+        aliases = merged_names(ent_surface[key], display)
+        if aliases:
+            node["aliases"] = aliases
+        nodes.append(node)
 
     links = []
     for (doc_name, key), count in sorted(edge.items()):
@@ -442,6 +469,8 @@ def main():
             "documents": len(doc_mentions),
             "entities": len(kept),
             "links": len(links),
+            "typeConflicts": sum("typeVotes" in n for n in nodes),
+            "mergedEntities": sum("aliases" in n for n in nodes),
             "entityTypes": NAMED_LABELS,
         },
         "nodes": nodes,
